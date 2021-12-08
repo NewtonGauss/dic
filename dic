@@ -1,0 +1,35 @@
+#!/bin/sh
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $0 FILE.java [FILE.java ...]" 1>&2
+	exit 1
+fi
+
+while [ -f "$1" ]; do
+	f="$1"
+	shift
+
+	if echo "$f" | grep ".java" -q -v; then
+		echo "\"${f}\" is not a Java file"
+		continue
+	fi
+
+	classname="$(basename "$f")"
+	classname="${classname%.*}" # sin la extension .java
+
+	awk '
+		$1 ~ "package" {
+			sub(/;/, "", $2)
+			printf "package %s.dict;\n\npublic class %s_ {\n", $2, CLASS
+		}
+		$0 ~ ".*(public|private|protected).*;" && $1 ~ "@.*" {
+			sub(/;/, "", $4)
+			printf "\tpublic static final String %s = \"%s\";\n", $4, $4
+		}
+		$0 ~ ".*(public|private|protected).*;" && $1 !~ "@.*" {
+			sub(/;/, "", $3)
+			printf "\tpublic static final String %s = \"%s\";\n", $3, $3
+		}
+		END { print "}" }
+	' CLASS="$classname" "$f" > "${classname}_.java"
+done
